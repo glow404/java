@@ -262,11 +262,9 @@ public void drawMoney(double money) {
 
 **最后，再给同学们说一下锁对象如何选择的问题**
 
-```java
 1.建议把共享资源作为锁对象, 不要将随便无关的对象当做锁对象
-2.对于实例方法，建议使用this作为锁对象
-3.对于静态方法，建议把类的字节码(类名.class)当做锁对象
-```
+**2.对于实例方法，建议使用this作为锁对象**
+**3.对于静态方法，建议把类的字节码(类名.class)当做锁对象**
 
 
 
@@ -612,7 +610,7 @@ ExecutorService pool = new ThreadPoolExecutor(
     TimeUnit.SECONDS,//时间单位（秒）
     new ArrayBlockingQueue<>(4), //任务阻塞队列，没有来得及执行的任务在，任务队列中等待
     Executors.defaultThreadFactory(), //用于创建线程的工厂对象
-    new ThreadPoolExecutor.CallerRunsPolicy() //拒绝策略
+    new ThreadPoolExecutor.CallerRunsPolicy() //拒绝策略，满了之后给提交该线程的线程执行，当前案例是main线程。
 );
 
 Runnable target = new MyRunnable();
