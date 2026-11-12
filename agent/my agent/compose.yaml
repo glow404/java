@@ -1,0 +1,98 @@
+# 本地第一版：数据库和上传文件使用持久卷；升级/停止时不要删除卷。
+name: vibe-data-agent
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://vibe:${POSTGRES_PASSWORD:?Please create .env first}@postgres:5432/vibe
+    REDIS_URL: redis://redis:6379/0
+    UPLOAD_DIR: /data/uploads
+  volumes:
+    - uploads:/data/uploads
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: vibe
+      POSTGRES_USER: vibe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Please create .env first}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U vibe -d vibe"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    <<: *backend
+    command: [python, -m, app.cli, migrate]
+    restart: "no"
+  api:
+    <<: *backend
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000", --workers, "1", --no-access-log]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      start_period: 30s
+      retries: 10
+  worker:
+    <<: *backend
+    command: [python, -m, app.jobs, worker]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -m, app.jobs, health]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+  frontend:
+    build: ./frontend
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "wget -q --spider http://127.0.0.1/ && wget -q --spider http://127.0.0.1/api/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:

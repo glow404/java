@@ -1,0 +1,10 @@
+# 本地端到端验收专用：界面与回复均标记 mock，不能视作真实中转站验收。
+services:
+  api:
+    environment:
+      MODEL_PROVIDER: mock
+      MODEL_MOCK_DELAY_SECONDS: "2"
+  worker:
+    environment:
+      MODEL_PROVIDER: mock
+      MODEL_MOCK_DELAY_SECONDS: "2"

@@ -1,0 +1,27 @@
+# 自动化替身只用于隔离验收；不修改默认生产模型配置或现有业务数据。
+services:
+  test:
+    image: vibe-data-agent-api:latest
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://vibe:${POSTGRES_PASSWORD}@postgres:5432/vibe_test
+      REDIS_URL: redis://redis:6379/1
+      UPLOAD_DIR: /data/test-uploads
+      MODEL_PROVIDER: mock
+      COOKIE_SECURE: "false"
+      VIBE_TEST_DATABASE: "true"
+    volumes:
+      - test_uploads:/data/test-uploads
+      - ./backend/app:/app/app:ro
+      - ./backend/alembic:/app/alembic:ro
+      - ./backend/tests:/app/tests:ro
+      - ./test-results:/data/test-reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: [python, -m, pytest, -q, --junitxml=/data/test-reports/pytest.xml]
+volumes:
+  test_uploads:
